@@ -9,9 +9,10 @@ from rich.align import Align
 from rich.style import Style
 import plotext as plt
 
-# Reconfigure Windows stdout encoding for UTF-8 emoji support
+# Reconfigure Windows stdout encoding for UTF-8 emoji & VT100 ANSI terminal support
 if sys.platform == "win32":
     try:
+        os.system('')  # Enable VT100 escape sequence processing in Windows CMD/PowerShell
         sys.stdout.reconfigure(encoding='utf-8')
     except Exception:
         pass
@@ -20,14 +21,28 @@ console = Console()
 
 
 def clear_screen():
-    """Clear terminal screen."""
-    os.system('cls' if os.name == 'nt' else 'clear')
+    """Clear terminal screen cleanly using Rich console without subshell VT artifacts."""
+    try:
+        console.clear()
+    except Exception:
+        os.system('cls' if os.name == 'nt' else 'clear')
+
+
+def soft_clear_screen():
+    """Reposition cursor to home (top-left) to enable smooth zero-flicker screen updates."""
+    try:
+        sys.stdout.write("\033[H")
+        sys.stdout.flush()
+    except Exception:
+        console.clear()
+
+
 
 
 def render_banner():
     """Render application header banner using Rich."""
     banner_text = Text()
-    banner_text.append("🎓 BEASISWA CHECKER ANALYTICS 🎓\n", style="bold cyan")
+    banner_text.append("BEASISWA CHECKER ANALYTICS\n", style="bold cyan")
     banner_text.append("Platform Cerdas Analitik, Pencocokan Beasiswa & AI Gap Advisor (Terminal Edition)", style="dim white")
     
     panel = Panel(
@@ -54,7 +69,7 @@ def render_user_profile_card(user: Dict[str, Any]):
 
     panel = Panel(
         Align.center(info_text),
-        title="[bold green]👤 Profil Pendaftar Saat Ini[/]",
+        title="[bold green]Profil Pendaftar Saat Ini[/]",
         border_style="green",
         padding=(0, 1)
     )
@@ -64,87 +79,175 @@ def render_user_profile_card(user: Dict[str, Any]):
 def make_progress_bar(score: float) -> str:
     """Create ASCII progress bar for match score percentage."""
     filled = int(score / 10)
-    unfilled = 10 - filled
-    return f"[{'█' * filled}{' ' * unfilled}]"
+    empty = 10 - filled
+    return f"[{'=' * filled}{'.' * empty}]"
 
 
-def render_matching_table(match_results: List[Dict[str, Any]]):
-    """Render matching analytics table with colored badges and progress bars."""
+def render_matching_scores_table(match_results: List[Dict[str, Any]], top_n: int = 10):
+    """Render top matching scholarships table using Rich."""
     table = Table(
-        title="📊 Hasil Analytics & Matrix Kecocokan Beasiswa",
-        header_style="bold magenta",
-        border_style="bright_black",
-        expand=True
+        title="[bold yellow]Matriks Analisis & Skor Kecocokan Beasiswa[/]",
+        header_style="bold cyan",
+        border_style="bright_black"
     )
 
-    table.add_column("Kategori Peluang", style="bold", justify="left")
-    table.add_column("Nama Beasiswa", style="bold white")
-    table.add_column("Peluang (%)", justify="center")
-    table.add_column("Status Syarat", justify="center")
-    table.add_column("Kuadran Rekomendasi", justify="left")
+    table.add_column("Rank", justify="center", style="bold white")
+    table.add_column("Beasiswa", style="bold yellow")
+    table.add_column("Penyelenggara", style="dim white")
+    table.add_column("Jenjang", justify="center")
+    table.add_column("Pendanaan", justify="center")
+    table.add_column("Score (%)", justify="right", style="bold green")
+    table.add_column("Kategori Fit", justify="center")
+    table.add_column("Progress Bar", justify="center")
 
-    for res in match_results:
-        cat = res["category"]
+    for idx, res in enumerate(match_results[:top_n], start=1):
+        cat = res["fit_category"]
         if cat == "Safety":
-            cat_styled = f"[green]🟢 {res['badge']}[/]"
-            score_styled = f"[bold green]{res['fit_score']}%[/] [green]{make_progress_bar(res['fit_score'])}[/]"
+            cat_styled = "[bold green]Safety[/]"
         elif cat == "Target":
-            cat_styled = f"[yellow]🟡 {res['badge']}[/]"
-            score_styled = f"[bold yellow]{res['fit_score']}%[/] [yellow]{make_progress_bar(res['fit_score'])}[/]"
+            cat_styled = "[bold yellow]Target[/]"
         else:
-            cat_styled = f"[red]🔴 {res['badge']}[/]"
-            score_styled = f"[bold red]{res['fit_score']}%[/] [red]{make_progress_bar(res['fit_score'])}[/]"
-
-        if res["is_qualified"]:
-            status_styled = f"[green]{res['status_label']}[/]"
-        else:
-            status_styled = f"[yellow]{res['status_label']}[/]"
+            cat_styled = "[bold red]Reach[/]"
 
         table.add_row(
-            cat_styled,
+            str(idx),
             res["scholarship_name"],
-            score_styled,
-            status_styled,
-            res["quadrant"]
+            res.get("provider", "N/A"),
+            ", ".join(res.get("target_degrees", [])),
+            res.get("funding_type", "Fully Funded"),
+            f"{res['fit_score']:.1f}%",
+            cat_styled,
+            make_progress_bar(res["fit_score"])
         )
 
     console.print(table)
 
 
-def render_terminal_chart(match_results: List[Dict[str, Any]]):
-    """Render ASCII/Unicode score distribution chart using Plotext."""
+render_matching_table = render_matching_scores_table
+
+
+
+def render_plotext_analytics_chart(match_results: List[Dict[str, Any]], top_n: int = 6):
+    """Render horizontal bar chart inside terminal using plotext."""
     if not match_results:
         return
 
-    console.print("\n[bold cyan]📈 Visualisasi Sebaran Skor Peluang Beasiswa (Plotext Chart)[/bold cyan]")
-    
-    names = [m["scholarship_name"].split(" ")[0] for m in match_results[:6]]
-    scores = [m["fit_score"] for m in match_results[:6]]
+    top_matches = match_results[:top_n]
+    names = [m["scholarship_name"][:18] for m in reversed(top_matches)]
+    scores = [m["fit_score"] for m in reversed(top_matches)]
 
-    plt.clf()
-    plt.bar(names, scores, color="cyan", width=0.5)
-    plt.title("Skor Match (%) per Beasiswa")
-    plt.ylim(0, 100)
-    plt.plotsize(65, 11)
+    plt.clear_figure()
+    plt.bar(names, scores, orientation="horizontal", color="cyan")
+    plt.title("Analisis Visualisasi Top Match Scores (%)")
     plt.theme("dark")
+    plt.plotsize(60, 10)
     plt.show()
     print()
 
 
-def render_ai_advice_panel(advice_list: List[str]):
-    """Render AI Gap Analysis advice in a Rich Panel."""
-    content = "\n".join(advice_list)
+render_terminal_chart = render_plotext_analytics_chart
+
+
+
+def render_ai_advice_panel(advice_list: Any):
+    """Render AI Gap Analysis advice in a Rich Panel with vibrant colors."""
+    from rich.console import Group
+    from rich.markdown import Markdown
+
+    if isinstance(advice_list, list):
+        advice_lines = advice_list
+    else:
+        advice_lines = [l.strip() for l in str(advice_list).split("\n") if l.strip()]
+
+    renderables = []
+    for line in advice_lines:
+        try:
+            if "[" in line and "]" in line:
+                renderables.append(Text.from_markup(line))
+            else:
+                renderables.append(Text(line, style="white"))
+        except Exception:
+            renderables.append(Text(line, style="white"))
+
     panel = Panel(
-        content,
-        title="[bold yellow]💡 AI Gap Analysis & Rekomendasi Action Plan[/]",
+        Group(*renderables),
+        title="[bold yellow]AI Gap Analysis & Rekomendasi Action Plan[/bold yellow]",
         border_style="yellow",
         padding=(1, 2)
     )
     console.print(panel)
 
 
-def render_scholarship_list_table(scholarships: List[Dict[str, Any]], filter_info: str = "Semua Beasiswa"):
-    """Render clean, panelled search & filter database table with row break lines."""
+def render_expanded_ai_view(user: Dict[str, Any], offline_advice: List[str]):
+    """Render full expanded dual-perspective AI Analysis screen (Built-in Rule Engine + DeepSeek AI Report)."""
+    from rich.console import Group
+
+    # 1. Built-in Rule-Based Panel
+    rule_renderables = []
+    for line in offline_advice:
+        try:
+            if "[" in line and "]" in line:
+                rule_renderables.append(Text.from_markup(line))
+            else:
+                rule_renderables.append(Text(line, style="white"))
+        except Exception:
+            rule_renderables.append(Text(line, style="white"))
+
+    rule_panel = Panel(
+        Group(*rule_renderables),
+        title="[bold cyan]Built-in Quick Action Plan (0-Token Rule Engine)[/bold cyan]",
+        border_style="cyan",
+        padding=(1, 2)
+    )
+    console.print(rule_panel)
+    print()
+
+    # 2. DeepSeek AI Analysis Panel
+    ai_text = user.get("last_ai_analysis", "").strip()
+    if ai_text:
+        ai_lines = [l.strip() for l in ai_text.split("\n") if l.strip()]
+        ai_renderables = []
+        for line in ai_lines:
+            try:
+                if "[" in line and "]" in line:
+                    ai_renderables.append(Text.from_markup(line))
+                else:
+                    ai_renderables.append(Text(line, style="white"))
+            except Exception:
+                ai_renderables.append(Text(line, style="white"))
+
+        ai_panel = Panel(
+            Group(*ai_renderables),
+            title="[bold yellow]DeepSeek AI Comprehensive Gap Analysis Report[/bold yellow]",
+            border_style="yellow",
+            padding=(1, 2)
+        )
+        console.print(ai_panel)
+    else:
+        info_panel = Panel(
+            "[yellow]DeepSeek AI Analysis belum dipanggil untuk profil ini.\n"
+            "Silakan pilih menu [5] Fitur AI & Scraper -> [1] Generasi Analisis AI DeepSeek untuk me-generate report AI.[/yellow]",
+            title="[bold yellow]DeepSeek AI Comprehensive Report[/bold yellow]",
+            border_style="dim yellow",
+            padding=(1, 2)
+        )
+        console.print(info_panel)
+
+
+def render_scholarship_list_table(scholarships: List[Dict[str, Any]], filter_info: str = "Semua Beasiswa", page: int = 1, page_size: int = 8):
+
+    """Render clean, paginated panelled search & filter database table with row index numbers."""
+    import math
+    from rich.console import Group
+
+    total_items = len(scholarships)
+    total_pages = max(1, math.ceil(total_items / page_size)) if total_items > 0 else 1
+    current_page = max(1, min(page, total_pages))
+    
+    start_idx = (current_page - 1) * page_size
+    end_idx = min(start_idx + page_size, total_items)
+    page_items = scholarships[start_idx:end_idx] if total_items > 0 else []
+
     table = Table(
         header_style="bold magenta",
         border_style="bright_black",
@@ -152,16 +255,18 @@ def render_scholarship_list_table(scholarships: List[Dict[str, Any]], filter_inf
         expand=True
     )
 
+    table.add_column("No", style="bold cyan", justify="center", width=4)
     table.add_column("Nama Beasiswa", style="bold yellow", ratio=4)
-    table.add_column("Penyelenggara", style="cyan", ratio=4)
+    table.add_column("Penyelenggara", style="cyan", ratio=3)
     table.add_column("Pendanaan", style="bold green", justify="center", ratio=2)
     table.add_column("Jenjang", justify="center", ratio=2)
     table.add_column("Min IPK", justify="center", ratio=1)
     table.add_column("Min IELTS", justify="center", ratio=1)
     table.add_column("Deadline", justify="center", ratio=2)
 
-    for s in scholarships:
+    for idx, s in enumerate(page_items, start=1):
         table.add_row(
+            f"[{idx}]",
             f"[bold yellow]{s['name']}[/]",
             s["provider"],
             f"[bold green]{s['funding_type']}[/]",
@@ -171,12 +276,57 @@ def render_scholarship_list_table(scholarships: List[Dict[str, Any]], filter_inf
             s["deadline_date"]
         )
 
-    panel = Panel(
+    item_range_str = f"{start_idx + 1}-{end_idx}" if total_items > 0 else "0"
+    pagination_str = (
+        f"  [bold yellow][P] ◀ Hal. Sebelum[/bold yellow]   │   "
+        f"[bold white]Halaman {current_page} dari {total_pages}[/bold white] [dim](Data {item_range_str} dari {total_items} Beasiswa)[/dim]   │   "
+        f"[bold yellow]Hal. Berikutnya ▶ [N][/bold yellow]  "
+    )
+
+    panel_group = Group(
         table,
-        title=f"[bold cyan]📚 Database Master Beasiswa ({len(scholarships)} Ditemukan - Filter: {filter_info})[/bold cyan]",
+        Align.center(pagination_str)
+    )
+
+    panel = Panel(
+        panel_group,
+        title=f"[bold cyan]Database Master Beasiswa ({len(scholarships)} Ditemukan - Filter: {filter_info})[/bold cyan]",
         border_style="cyan"
     )
     console.print(panel)
+    return current_page, total_pages, page_items
+
+
+
+def render_scholarship_detail_card(s: Dict[str, Any], is_bookmarked: bool = False):
+    """Render comprehensive detail card for a selected scholarship entry using TUI symbols."""
+    bm_badge = "[bold yellow][BOOKMARKED][/bold yellow]" if is_bookmarked else "[dim][NO BOOKMARK][/dim]"
+    degrees = ", ".join(s.get("target_degrees", [])) or "Semua"
+    countries = ", ".join(s.get("target_countries", [])) or "Global"
+    docs = "\n  - " + "\n  - ".join(s.get("required_documents", [])) if s.get("required_documents") else " Tidak ada rincian"
+
+    detail_text = (
+        f"[bold white]Penyelenggara[/bold white] : [bold cyan]{s.get('provider')}[/bold cyan]\n"
+        f"[bold white]Jenis Pendanaan[/bold white]: [bold green]{s.get('funding_type')}[/bold green] | Status: {bm_badge}\n"
+        f"[bold white]Target Jenjang [/bold white]: {degrees}\n"
+        f"[bold white]Negara Target  [/bold white]: {countries}\n\n"
+        f"[bold yellow]Syarat Minimal Akademik & Bahasa:[/bold yellow]\n"
+        f"  - IPK Minimal     : [cyan]{s.get('min_gpa', 0.0):.2f}[/cyan]\n"
+        f"  - IELTS Minimal   : [cyan]{s.get('min_ielts', 0.0)}[/cyan] | TOEFL iBT Minimal: [cyan]{s.get('min_toefl_ibt', 0.0)}[/cyan]\n"
+        f"  - Batas Usia      : [cyan]{s.get('max_age', 99)} Tahun[/cyan] | Pengalaman Kerja: [cyan]{s.get('min_work_exp_years', 0)} Tahun[/cyan]\n\n"
+        f"[bold yellow]Dokumen Persyaratan:[/bold yellow]{docs}\n\n"
+        f"[bold white]Deadline Pendaftaran[/bold white]: [bold red]{s.get('deadline_date', 'TBA')}[/bold red]\n"
+        f"[bold white]Portal Resmi        [/bold white]: [underline blue]{s.get('source_url', '-')}[/underline blue]\n\n"
+        f"[italic white]Deskripsi:[/italic white]\n{s.get('description', '-')}"
+    )
+
+    panel = Panel(
+        detail_text,
+        title=f"[bold yellow]Detail Beasiswa: {s.get('name')}[/bold yellow]",
+        border_style="yellow"
+    )
+    console.print(panel)
+
 
 
 def render_bookmarked_scholarships_table(bookmarks: List[Dict[str, Any]], user_name: str = "Pendaftar"):
@@ -188,7 +338,7 @@ def render_bookmarked_scholarships_table(bookmarks: List[Dict[str, Any]], user_n
         expand=True
     )
 
-    table.add_column("⭐ Beasiswa", style="bold yellow", ratio=4)
+    table.add_column("Beasiswa", style="bold yellow", ratio=4)
     table.add_column("Penyelenggara", style="cyan", ratio=3)
     table.add_column("Status Aplikasi", style="bold green", justify="center", ratio=2)
     table.add_column("Prioritas", style="bold magenta", justify="center", ratio=2)
@@ -196,18 +346,18 @@ def render_bookmarked_scholarships_table(bookmarks: List[Dict[str, Any]], user_n
 
     if not bookmarks:
         table.add_row(
-            "[dim]Belum ada beasiswa yang ditandai (⭐ Bookmark)[/dim]",
+            "[dim]Belum ada beasiswa yang ditandai (Bookmark)[/dim]",
             "-", "-", "-", "-"
         )
     else:
         for b in bookmarks:
             prio = b.get("priority", "NONE")
-            prio_styled = f"[magenta]⭐ {prio}[/]" if prio != "NONE" else "[dim]-[/dim]"
+            prio_styled = f"[magenta]{prio}[/]" if prio != "NONE" else "[dim]-[/dim]"
             stat = b.get("app_status", "SAVED")
             notes = b.get("user_notes", "") or "[dim]Belum ada catatan[/dim]"
             
             table.add_row(
-                f"⭐ [bold white]{b['name']}[/]",
+                f"[bold white]{b['name']}[/]",
                 b["provider"],
                 f"[bold green][{stat}][/bold green]",
                 prio_styled,
@@ -216,7 +366,7 @@ def render_bookmarked_scholarships_table(bookmarks: List[Dict[str, Any]], user_n
 
     panel = Panel(
         table,
-        title=f"[bold yellow]⭐ Daftar Beasiswa Tersimpan & Catatan (Profil: {user_name})[/bold yellow]",
+        title=f"[bold yellow]Daftar Beasiswa Tersimpan & Catatan (Profil: {user_name})[/bold yellow]",
         border_style="yellow"
     )
     console.print(panel)
@@ -387,84 +537,58 @@ def render_wireframe_dashboard(
     )
 
     # 4. Analysis-&-Action Content
-    advice_text = "\n".join(advice_list)
+    if user.get("last_ai_analysis"):
+        raw_advice = user.get("last_ai_analysis")
+    else:
+        raw_advice = advice_list
+
+    if isinstance(raw_advice, str):
+        advice_lines = [l.strip() for l in raw_advice.split("\n") if l.strip()]
+    else:
+        advice_lines = raw_advice
+
+    # Cap lines at max 7 to fit nicely inside terminal height
+    fitted_lines = advice_lines[:7]
+    renderables = []
+    for line in fitted_lines:
+        try:
+            if "[" in line and "]" in line:
+                renderables.append(Text.from_markup(line))
+            else:
+                renderables.append(Text(line, style="white"))
+        except Exception:
+            renderables.append(Text(line, style="white"))
+
+    renderables.append(Text("\n[Tekan E] Perluas & Baca Dual AI Report", style="dim yellow"))
+
     layout["middle"]["right_sidebar"]["analysis_action"].update(
-        Panel(advice_text, title="Analisis & Rekomendasi AI", border_style="white")
+        Panel(
+            Group(*renderables),
+            title="[bold yellow]Analisis & Rekomendasi AI[/bold yellow]",
+            border_style="yellow"
+        )
     )
+
+
+
 
     # 5. Bottom Navigasi Content (Horizontal pointer navigation)
-    menu_items = [
-        ("1", "Dashboard"),
-        ("2", "Kelola Profil"),
-        ("3", "Cari & Filter"),
-        ("4", "Scraper Web"),
-        ("5", "AI Advisor"),
-        ("0", "Keluar")
-    ]
+    from cli.menus import MENU_ITEMS
 
     nav_parts = []
-    for idx, (key, label) in enumerate(menu_items):
+    for idx, (key, label) in enumerate(MENU_ITEMS):
         if idx == selected_index:
-            nav_parts.append(f"[bold white on dark_blue] ▶ [{key}] {label} [/]")
+            nav_parts.append(f"[bold white on dark_blue]▶ [{key}] {label}[/]")
         else:
-            nav_parts.append(f"  [{key}] {label}  ")
+            nav_parts.append(f"[{key}] {label}")
 
-    nav_text = "   ".join(nav_parts)
-    layout["bottom_nav"].update(
-        Panel(Align.center(nav_text), title="[bold yellow]Menu Utama (Gunakan Tombol Panah ↑ ↓ ← → dan Enter)[/bold yellow]", border_style="yellow")
-    )
-
-    console.print(layout)
-
-
-
-
-
-
-
-    # 3. User-Info Content
-    countries_str = ", ".join(user.get("target_countries", []))
-    user_info_lines = (
-        f"Nama       : {user.get('name', 'Adika')}\n"
-        f"Jenjang    : {user.get('target_degree', 'S2')}\n"
-        f"Target     : {countries_str}\n"
-        f"IPK        : {user.get('gpa', 0.0):.2f}\n"
-        f"IELTS      : {user.get('ielts_score', 0.0)}\n"
-        f"Pengalaman : {user.get('work_exp_years', 0)} Th"
-    )
-    layout["middle"]["right_sidebar"]["user_info"].update(
-        Panel(user_info_lines, title="User-Info", border_style="white")
-    )
-
-    # 4. Analysis-&-Action Content
-    advice_text = "\n".join(advice_list)
-    layout["middle"]["right_sidebar"]["analysis_action"].update(
-        Panel(advice_text, title="Analysis-&-Action", border_style="white")
-    )
-
-    # 5. Bottom Navigasi Content (Horizontal pointer navigation)
-    menu_items = [
-        ("1", "Dashboard"),
-        ("2", "Edit Profil"),
-        ("3", "Filter Beasiswa"),
-        ("4", "Scraper"),
-        ("5", "AI Advisor"),
-        ("0", "Keluar")
-    ]
-
-    nav_parts = []
-    for idx, (key, label) in enumerate(menu_items):
-        if idx == selected_index:
-            nav_parts.append(f"[bold white on dark_blue] ▶ [{key}] {label} [/]")
-        else:
-            nav_parts.append(f"  [{key}] {label}  ")
-
-    nav_text = "   ".join(nav_parts)
+    nav_text = "  ".join(nav_parts)
     layout["bottom_nav"].update(
         Panel(Align.center(nav_text), title="[bold yellow]Navigasi Menu (Gunakan Panah ↑ ↓ ← → dan Enter)[/bold yellow]", border_style="yellow")
     )
 
     console.print(layout)
+
 
 
 

@@ -7,12 +7,16 @@ console = Console()
 
 MENU_ITEMS = [
     ("1", "Dashboard"),
-    ("2", "Edit Profil"),
-    ("3", "Filter Beasiswa"),
-    ("4", "Scraper"),
-    ("5", "AI Advisor"),
+    ("2", "Profil"),
+    ("3", "Filter"),
+    ("4", "Bookmark"),
+    ("5", "Fitur AI & Scraper"),
     ("0", "Keluar")
 ]
+
+
+
+
 
 
 def read_key() -> str:
@@ -81,11 +85,16 @@ def handle_dashboard_navigation(current_index: int = 0) -> Tuple[str, int, str]:
 
     key_lower = key.lower()
 
-    if key_lower in ('n', ']'):
+    if key_lower == 'e':
+        return ("EXPAND_AI", current_index, "E")
+
+
+    elif key_lower in ('n', ']'):
         return ("PAGE_NEXT", current_index, MENU_ITEMS[current_index][0])
 
     elif key_lower in ('p', '['):
         return ("PAGE_PREV", current_index, MENU_ITEMS[current_index][0])
+
 
     elif key in ("UP", "LEFT"):
         new_index = (current_index - 1) % len(MENU_ITEMS)
@@ -98,7 +107,8 @@ def handle_dashboard_navigation(current_index: int = 0) -> Tuple[str, int, str]:
     elif key == "ENTER":
         return ("SELECT", current_index, MENU_ITEMS[current_index][0])
 
-    elif key in ["1", "2", "3", "4", "5", "0"]:
+    elif key in ["1", "2", "3", "4", "5", "6", "0"]:
+
         for idx, (k, _) in enumerate(MENU_ITEMS):
             if k == key:
                 return ("SELECT", idx, key)

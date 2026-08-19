@@ -1,9 +1,82 @@
+import time
 from typing import Dict, Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt, FloatPrompt, IntPrompt
 
 console = Console()
+
+
+def create_initial_user_profile_prompt() -> Dict[str, Any]:
+    """Interactively prompt user to create their first applicant profile on initial setup."""
+    console.print(Panel(
+        "[bold cyan]Selamat Datang di Beasiswa Checker Analytics![/bold cyan]\n\n"
+        "[white]Sistem mendeteksi ini adalah peluncuran pertama kali.\n"
+        "Silakan isi data profil pendaftar beasiswa Anda untuk memulai analitik.[/white]",
+        title="Inisialisasi Profil Pendaftar",
+        border_style="cyan"
+    ))
+
+    try:
+        from InquirerPy import inquirer
+
+        name = inquirer.text(message="Nama Lengkap Anda:", default="Pendaftar Beasiswa").execute().strip()
+        gpa = float(inquirer.text(message="IPK Saat Ini (0.0 - 4.0):", default="3.50").execute().strip())
+        ielts = float(inquirer.text(message="Skor IELTS Saat Ini (0.0 - 9.0):", default="6.5").execute().strip())
+        toefl = float(inquirer.text(message="Skor TOEFL iBT (default 80):", default="80").execute().strip())
+        age = int(inquirer.text(message="Usia Anda (Tahun):", default="24").execute().strip())
+        degree = inquirer.select(message="Target Jenjang Studi:", choices=["S1", "S2", "S3"], default="S2").execute()
+        major = inquirer.text(message="Jurusan / Bidang Studi:", default="Informatika").execute().strip()
+        exp = int(inquirer.text(message="Pengalaman Kerja (Tahun):", default="1").execute().strip())
+        pubs = int(inquirer.text(message="Jumlah Publikasi / Jurnal Riset:", default="0").execute().strip())
+        countries_raw = inquirer.text(message="Negara Target (pisahkan koma, cth: UK, Australia, Japan):", default="UK, Australia").execute().strip()
+
+        countries = [c.strip() for c in countries_raw.split(",") if c.strip()]
+        if not countries:
+            countries = ["UK", "Australia"]
+
+        profile = {
+            "id": f"user_{int(time.time())}",
+            "name": name if name else "Pendaftar Beasiswa",
+            "gpa": gpa,
+            "ielts_score": ielts,
+            "toefl_ibt_score": toefl,
+            "age": age,
+            "target_degree": degree,
+            "major_field": major if major else "General",
+            "work_exp_years": exp,
+            "publications_count": pubs,
+            "target_countries": countries
+        }
+        return profile
+
+    except Exception:
+        # Fallback to Rich prompts
+        name = Prompt.ask("Nama Lengkap Anda", default="Pendaftar Beasiswa")
+        gpa = FloatPrompt.ask("IPK Saat Ini (0.0 - 4.0)", default=3.50)
+        ielts = FloatPrompt.ask("Skor IELTS Saat Ini", default=6.5)
+        age = IntPrompt.ask("Usia Anda (Tahun)", default=24)
+        degree = Prompt.ask("Target Jenjang Studi (S1/S2/S3)", default="S2")
+        major = Prompt.ask("Jurusan / Bidang Studi", default="Informatika")
+        exp = IntPrompt.ask("Pengalaman Kerja (Tahun)", default=1)
+        pubs = IntPrompt.ask("Jumlah Publikasi Riset", default=0)
+        countries_raw = Prompt.ask("Negara Target (pisahkan koma)", default="UK, Australia")
+        countries = [c.strip() for c in countries_raw.split(",") if c.strip()]
+
+        return {
+            "id": f"user_{int(time.time())}",
+            "name": name,
+            "gpa": gpa,
+            "ielts_score": ielts,
+            "toefl_ibt_score": 80.0,
+            "age": age,
+            "target_degree": degree,
+            "major_field": major,
+            "work_exp_years": exp,
+            "publications_count": pubs,
+            "target_countries": countries
+        }
+
 
 
 def prompt_user_profile_inputs(current_profile: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -17,7 +90,7 @@ def prompt_user_profile_inputs(current_profile: Dict[str, Any] = None) -> Dict[s
     profile = dict(current_profile)
 
     while True:
-        console.print("\n[bold yellow]✏️ MENU PENGATURAN / EDIT PROFIL PENDAFTAR[/bold yellow]")
+        console.print("\n[bold yellow]MENU PENGATURAN / EDIT PROFIL PENDAFTAR[/bold yellow]")
         console.print("[dim]Pilih item spesifik yang ingin diubah, atau pilih 'Edit SEMUA Data'.[/dim]\n")
 
         countries_str = ", ".join(profile.get("target_countries", []))
@@ -32,8 +105,8 @@ def prompt_user_profile_inputs(current_profile: Dict[str, Any] = None) -> Dict[s
             f"[8] Pengalaman Kerja        : {profile.get('work_exp_years', 2)} Th",
             f"[9] Publikasi Riset          : {profile.get('publications_count', 1)} Paper",
             f"[10] Negara Target Beasiswa  : {countries_str}",
-            "[A] ✏️ Edit SEMUA Bidang Sekaligus",
-            "[0] 💾 Selesai & Simpan Perubahan"
+            "[A] Edit SEMUA Bidang Sekaligus",
+            "[0] Selesai & Simpan Perubahan"
         ]
 
         try:
@@ -185,7 +258,7 @@ def prompt_user_profile_inputs(current_profile: Dict[str, Any] = None) -> Dict[s
 
     console.print(Panel(
         summary_lines,
-        title="[bold green]✅ Summary Updates Profil Berhasil Disimpan![/bold green]",
+        title="[bold green][✓] Summary Updates Profil Berhasil Disimpan![/bold green]",
         border_style="green",
         padding=(1, 2)
     ))
@@ -216,14 +289,14 @@ def manage_user_profiles(current_profile: Dict[str, Any] = None) -> Dict[str, An
         all_profiles = get_all_user_profiles()
         active_name = active_profile.get("name", "Pengguna Utama")
 
-        console.print(f"\n[bold cyan]👤 PENGELOLA PROFIL PENDAFTAR[/bold cyan] [dim](Profil Aktif Saat Ini: [bold yellow]{active_name}[/bold yellow])[/dim]")
+        console.print(f"\n[bold cyan]PENGELOLA PROFIL PENDAFTAR[/bold cyan] [dim](Profil Aktif Saat Ini: [bold yellow]{active_name}[/bold yellow])[/dim]")
         
         main_options = [
-            f"[1] ✏️ Ubah Data Profil Aktif ({active_name})",
-            f"[2] 🔄 Ganti Profil Aktif (Total: {len(all_profiles)} Profil Tersimpan)",
-            "[3] ➕ Tambah Profil Pendaftar Baru",
-            "[4] 🗑️ Hapus Profil Pendaftar",
-            "[0] ⬅️ Kembali ke Dashboard Utama"
+            f"[1] Ubah Data Profil Aktif ({active_name})",
+            f"[2] Ganti Profil Aktif (Total: {len(all_profiles)} Profil Tersimpan)",
+            "[3] Tambah Profil Pendaftar Baru",
+            "[4] Hapus Profil Pendaftar",
+            "[0] Kembali ke Dashboard Utama"
         ]
 
         try:
@@ -251,7 +324,7 @@ def manage_user_profiles(current_profile: Dict[str, Any] = None) -> Dict[str, An
                     f"[{p['id']}] {p['name']} ({p.get('target_degree', 'S1')}, IPK {p.get('gpa', 0.0):.2f})"
                     for p in all_profiles
                 ]
-                profile_choices.append("[CANCEL] ⬅️ Batal")
+                profile_choices.append("[CANCEL] Batal")
                 
                 chosen = inquirer.select(
                     message="Silakan pilih profil pendaftar yang ingin diaktifkan:",
@@ -295,10 +368,10 @@ def manage_user_profiles(current_profile: Dict[str, Any] = None) -> Dict[str, An
                     for p in all_profiles if p['id'] != active_profile.get('id')
                 ]
                 if not deletable:
-                    console.print("\n[yellow]⚠️ Tidak ada profil lain yang dapat dihapus (Profil aktif tidak dapat dihapus).[/yellow]")
+                    console.print("\n[yellow][!] Tidak ada profil lain yang dapat dihapus (Profil aktif tidak dapat dihapus).[/yellow]")
                     Prompt.ask("Tekan Enter untuk kembali")
                 else:
-                    deletable.append("[CANCEL] ⬅️ Batal")
+                    deletable.append("[CANCEL] Batal")
                     target = inquirer.select(message="Pilih profil yang ingin dihapus:", choices=deletable).execute()
                     if "[CANCEL]" not in target:
                         del_id = target.split("]")[0].replace("[", "")
@@ -311,5 +384,6 @@ def manage_user_profiles(current_profile: Dict[str, Any] = None) -> Dict[str, An
             break
 
     return active_profile
+
 
 
