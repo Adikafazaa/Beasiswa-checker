@@ -179,6 +179,50 @@ def render_scholarship_list_table(scholarships: List[Dict[str, Any]], filter_inf
     console.print(panel)
 
 
+def render_bookmarked_scholarships_table(bookmarks: List[Dict[str, Any]], user_name: str = "Pendaftar"):
+    """Render table of user's saved bookmarks, application status, priority, and personal notes."""
+    table = Table(
+        header_style="bold yellow",
+        border_style="bright_black",
+        show_lines=True,
+        expand=True
+    )
+
+    table.add_column("⭐ Beasiswa", style="bold yellow", ratio=4)
+    table.add_column("Penyelenggara", style="cyan", ratio=3)
+    table.add_column("Status Aplikasi", style="bold green", justify="center", ratio=2)
+    table.add_column("Prioritas", style="bold magenta", justify="center", ratio=2)
+    table.add_column("Catatan Pribadi", style="italic white", ratio=4)
+
+    if not bookmarks:
+        table.add_row(
+            "[dim]Belum ada beasiswa yang ditandai (⭐ Bookmark)[/dim]",
+            "-", "-", "-", "-"
+        )
+    else:
+        for b in bookmarks:
+            prio = b.get("priority", "NONE")
+            prio_styled = f"[magenta]⭐ {prio}[/]" if prio != "NONE" else "[dim]-[/dim]"
+            stat = b.get("app_status", "SAVED")
+            notes = b.get("user_notes", "") or "[dim]Belum ada catatan[/dim]"
+            
+            table.add_row(
+                f"⭐ [bold white]{b['name']}[/]",
+                b["provider"],
+                f"[bold green][{stat}][/bold green]",
+                prio_styled,
+                notes
+            )
+
+    panel = Panel(
+        table,
+        title=f"[bold yellow]⭐ Daftar Beasiswa Tersimpan & Catatan (Profil: {user_name})[/bold yellow]",
+        border_style="yellow"
+    )
+    console.print(panel)
+
+
+
 
 def create_user_info_panel(user: Dict[str, Any]) -> Panel:
     """Create User-Info panel matching exact wireframe spec."""

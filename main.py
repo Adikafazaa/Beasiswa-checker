@@ -24,7 +24,11 @@ from modules.database import (
     init_db,
     get_user_profile,
     save_user_profile,
-    get_all_scholarships
+    get_all_scholarships,
+    get_user_scholarship_flags,
+    toggle_bookmark,
+    update_scholarship_flag,
+    get_bookmarked_scholarships
 )
 from modules.matching_engine import run_full_matching
 from modules.ai_advisor import get_ai_gap_analysis
@@ -36,9 +40,11 @@ from cli.views import (
     render_terminal_chart,
     render_ai_advice_panel,
     render_scholarship_list_table,
+    render_bookmarked_scholarships_table,
     render_wireframe_dashboard,
     render_back_button_prompt
 )
+
 from cli.profile_cli import prompt_user_profile_inputs, manage_user_profiles
 
 from cli.menus import handle_dashboard_navigation, read_key
@@ -75,7 +81,16 @@ def main():
 
     while True:
         clear_screen()
+        user_flags = get_user_scholarship_flags(user_profile["id"])
         match_results = run_full_matching(user_profile, scholarships)
+
+        # Annotate bookmarked items with star prefix
+        for res in match_results:
+            flag_info = user_flags.get(res["scholarship_id"], {})
+            if flag_info.get("is_bookmarked") == 1:
+                if not res["scholarship_name"].startswith("⭐"):
+                    res["scholarship_name"] = f"⭐ {res['scholarship_name']}"
+
         advice_list = get_ai_gap_analysis(user_profile, match_results)
 
         if current_action == "1":
@@ -173,15 +188,73 @@ def main():
             continue
 
         elif current_action == "5":
-            # 5. AI Gap Analysis Advisor
+            # 5. ⭐ Kelola Bookmark, Status & Catatan Beasiswa
             render_banner()
             render_user_profile_card(user_profile)
-            render_ai_advice_panel(advice_list)
+            user_bms = get_bookmarked_scholarships(user_profile["id"])
+            render_bookmarked_scholarships_table(user_bms, user_name=user_profile["name"])
+
+            try:
+                from InquirerPy import inquirer
+                b_action = inquirer.select(
+                    message="Menu Kelola Bookmark & Catatan Pribadi:",
+                    choices=[
+                        "[1] ⭐ Tandai / Hapus Bookmark Beasiswa (Toggle Star)",
+                        "[2] 📝 Edit Status Aplikasi & Catatan Pribadi",
+                        "[0] ⬅️ Kembali ke Dashboard Utama"
+                    ],
+                    default="[0] ⬅️ Kembali ke Dashboard Utama"
+                ).execute()
+
+                if "[1]" in b_action:
+                    s_choices = [f"[{s['id']}] {s['name']}" for s in scholarships]
+                    s_choices.append("[CANCEL] ⬅️ Batal")
+                    chosen_s = inquirer.select(message="Pilih beasiswa untuk ditandai (⭐ Bookmark):", choices=s_choices).execute()
+                    if "[CANCEL]" not in chosen_s:
+                        target_sid = chosen_s.split("]")[0].replace("[", "")
+                        is_star = toggle_bookmark(user_profile["id"], target_sid)
+                        status_msg = "ditambahkan ke Bookmark! ⭐" if is_star else "dihapus dari Bookmark."
+                        console.print(f"\n[bold green]✅ Beasiswa berhasil {status_msg}[/bold green]")
+                        time.sleep(1)
+
+                elif "[2]" in b_action:
+                    s_choices = [f"[{s['id']}] {s['name']}" for s in scholarships]
+                    s_choices.append("[CANCEL] ⬅️ Batal")
+                    chosen_s = inquirer.select(message="Pilih beasiswa untuk diubah catatan/statusnya:", choices=s_choices).execute()
+                    if "[CANCEL]" not in chosen_s:
+                        target_sid = chosen_s.split("]")[0].replace("[", "")
+                        stat_choice = inquirer.select(
+                            message="Pilih Status Aplikasi:",
+                            choices=["SAVED", "DRAFTING", "APPLIED", "ACCEPTED", "REJECTED"],
+                            default="SAVED"
+                        ).execute()
+                        prio_choice = inquirer.select(
+                            message="Pilih Tingkat Prioritas:",
+                            choices=["HIGH", "MED", "LOW", "NONE"],
+                            default="HIGH"
+                        ).execute()
+                        note_text = inquirer.text(message="Masukkan Catatan Pribadi / Reminder:").execute()
+                        
+                        update_scholarship_flag(
+                            user_id=user_profile["id"],
+                            scholarship_id=target_sid,
+                            is_bookmarked=True,
+                            priority=prio_choice,
+                            status=stat_choice,
+                            user_notes=note_text
+                        )
+                        console.print("\n[bold green]✅ Catatan & Status Aplikasi Berhasil Disimpan![/bold green]")
+                        time.sleep(1)
+
+            except Exception:
+                pass
+
             render_back_button_prompt("Kembali ke Dashboard Utama")
             read_key()
             current_action = "1"
             selected_index = 0
             continue
+
 
         # Read native keypress (Up/Down Arrow keys move pointer inside Navigasi box, Enter selects, N/P page)
         event_type, new_idx, key_code = handle_dashboard_navigation(selected_index)

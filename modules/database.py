@@ -8,18 +8,19 @@ DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 DB_PATH = os.path.join(DB_DIR, "scholarships.db")
 
 
+from modules.storage.migrator import run_migrations, get_connection as get_migrator_conn, DB_PATH
+
 def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
     """Ensure data directory exists and return a SQLite database connection."""
-    os.makedirs(DB_DIR, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return get_migrator_conn(db_path)
 
 
 def init_db(db_path: str = DB_PATH) -> None:
-    """Initialize database tables and populate seed data if empty."""
+    """Initialize database tables via MigrationEngine and populate seed data if empty."""
+    run_migrations(db_path)
     conn = get_connection(db_path)
     cursor = conn.cursor()
+
 
     # Create scholarships table
     cursor.execute("""
@@ -426,6 +427,112 @@ def get_all_scholarships(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
         item["target_degrees"] = json.loads(item["target_degrees"]) if item["target_degrees"] else []
         item["target_countries"] = json.loads(item["target_countries"]) if item["target_countries"] else []
         item["required_documents"] = json.loads(item["required_documents"]) if item["required_documents"] else []
-        results.append(item)
-
     return results
+
+
+def get_user_scholarship_flags(user_id: str, db_path: str = DB_PATH) -> Dict[str, Dict[str, Any]]:
+    """Retrieve all scholarship interaction flags (bookmarks, status, notes) for a user."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM user_scholarship_flags WHERE user_id = ?", (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    flags = {}
+    for r in rows:
+        item = dict(r)
+        flags[item["scholarship_id"]] = item
+    return flags
+
+
+def toggle_bookmark(user_id: str, scholarship_id: str, db_path: str = DB_PATH) -> bool:
+    """Toggle star/bookmark status for a specific user and scholarship."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT is_bookmarked FROM user_scholarship_flags WHERE user_id = ? AND scholarship_id = ?",
+        (user_id, scholarship_id)
+    )
+    row = cursor.fetchone()
+
+    if not row:
+        new_status = 1
+        cursor.execute(
+            "INSERT INTO user_scholarship_flags (user_id, scholarship_id, is_bookmarked, updated_at) VALUES (?, ?, 1, ?)",
+            (user_id, scholarship_id, datetime.now().isoformat())
+        )
+    else:
+        new_status = 0 if row["is_bookmarked"] == 1 else 1
+        cursor.execute(
+            "UPDATE user_scholarship_flags SET is_bookmarked = ?, updated_at = ? WHERE user_id = ? AND scholarship_id = ?",
+            (new_status, datetime.now().isoformat(), user_id, scholarship_id)
+        )
+
+    conn.commit()
+    conn.close()
+    return bool(new_status)
+
+
+def update_scholarship_flag(
+    user_id: str,
+    scholarship_id: str,
+    is_bookmarked: Optional[bool] = None,
+    priority: Optional[str] = None,
+    status: Optional[str] = None,
+    user_notes: Optional[str] = None,
+    db_path: str = DB_PATH
+) -> None:
+    """Save or update specific flag attributes (bookmark, priority, status, personal notes)."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT * FROM user_scholarship_flags WHERE user_id = ? AND scholarship_id = ?",
+        (user_id, scholarship_id)
+    )
+    row = cursor.fetchone()
+    current = dict(row) if row else {
+        "is_bookmarked": 0,
+        "priority": "NONE",
+        "status": "SAVED",
+        "user_notes": ""
+    }
+
+    new_bm = current["is_bookmarked"] if is_bookmarked is None else (1 if is_bookmarked else 0)
+    new_prio = current["priority"] if priority is None else priority
+    new_stat = current["status"] if status is None else status
+    new_notes = current["user_notes"] if user_notes is None else user_notes
+
+    cursor.execute("""
+    INSERT OR REPLACE INTO user_scholarship_flags (
+        user_id, scholarship_id, is_bookmarked, priority, status, user_notes, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, scholarship_id, new_bm, new_prio, new_stat, new_notes, datetime.now().isoformat()))
+
+    conn.commit()
+    conn.close()
+
+
+def get_bookmarked_scholarships(user_id: str, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Retrieve list of scholarships bookmarked by a specific user with their notes & flags."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT s.*, f.is_bookmarked, f.priority, f.status as app_status, f.user_notes
+    FROM scholarships s
+    INNER JOIN user_scholarship_flags f ON s.id = f.scholarship_id
+    WHERE f.user_id = ? AND f.is_bookmarked = 1
+    ORDER BY f.updated_at DESC
+    """, (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    results = []
+    for r in rows:
+        item = dict(r)
+        item["target_degrees"] = json.loads(item["target_degrees"]) if item["target_degrees"] else []
+        item["target_countries"] = json.loads(item["target_countries"]) if item["target_countries"] else []
+        item["required_documents"] = json.loads(item["required_documents"]) if item["required_documents"] else []
+        results.append(item)
+    return results
+
