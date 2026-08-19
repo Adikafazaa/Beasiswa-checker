@@ -21,26 +21,26 @@ def generate_rule_based_advice(user: Dict[str, Any], match_results: List[Dict[st
 
     # 1. Target Top Match
     advice_list.append(
-        f"🎯 [bold yellow]Target Utama[/]: {top_match['scholarship_name']} ([green]{top_match['fit_score']}% Match[/])"
+        f"• [bold yellow][TARGET UTAMA][/bold yellow]: [bold white]{top_match['scholarship_name']}[/bold white] ([bold green]{top_match['fit_score']:.1f}% Match[/bold green])"
     )
 
     # 2. IELTS Gap Advice
     if ielts < 7.0:
         boosted = min(95.0, top_match['fit_score'] + 10.0)
         advice_list.append(
-            f"📈 [bold cyan]IELTS ({ielts})[/]: Tingkatkan ke 7.0+ ➔ Peluang naik ke ~[bold green]{boosted:.1f}%[/]"
+            f"• [bold cyan][IELTS ({ielts})][/bold cyan]: Tingkatkan ke 7.0+ ➔ Peluang naik ke ~[bold green]{boosted:.1f}%[/bold green]"
         )
 
     # 3. Research Publication Gap Advice
     if pubs == 0:
         advice_list.append(
-            "📝 [bold cyan]Publikasi[/]: Tambahkan 1 paper/jurnal riset untuk memperkuat aplikasi."
+            "• [bold cyan][PUBLIKASI][/bold cyan]: Tambahkan 1 paper/jurnal riset untuk memperkuat aplikasi."
         )
 
     # 4. Work Experience Gap Advice
     if exp < 2:
         advice_list.append(
-            f"💼 [bold cyan]Pengalaman ({exp} th)[/]: Perbanyak bukti leadership & kegiatan sosial."
+            f"• [bold cyan][PENGALAMAN ({exp} th)][/bold cyan]: Perbanyak bukti leadership & kegiatan sosial."
         )
 
     # 5. Requirement Warning
@@ -52,8 +52,10 @@ def generate_rule_based_advice(user: Dict[str, Any], match_results: List[Dict[st
     if missing_items:
         unique_missing = list(set(missing_items))[:2]
         advice_list.append(
-            f"⚠️ [bold red]Catatan Syarat[/]: {'; '.join(unique_missing)}"
+            f"• [bold red][CATATAN SYARAT][/bold red]: {'; '.join(unique_missing)}"
         )
+
+
 
     return advice_list
 
@@ -61,51 +63,46 @@ def generate_rule_based_advice(user: Dict[str, Any], match_results: List[Dict[st
 
 def get_ai_gap_analysis(user: Dict[str, Any], match_results: List[Dict[str, Any]]) -> List[str]:
     """
-    Generate gap analysis using Gemini Flash API if GEMINI_API_KEY is available,
-    otherwise fallback seamlessly to the built-in advisor engine.
+    Generate gap analysis using DeepSeek API or Gemini API,
+    otherwise fallback seamlessly to the built-in rule-based advisor engine.
     """
-    api_key = os.getenv("GEMINI_API_KEY")
+    from modules.ai_client import generate_llm_text
 
-    if not api_key or api_key == "your_google_gemini_api_key_here":
-        return generate_rule_based_advice(user, match_results)
+    system_instruction = (
+        "Kamu adalah pakar konsultan beasiswa internasional (AI Gap Advisor). "
+        "Gunakan format Markdown standard dengan bullet points ('-') dan teks bold. "
+        "DILARANG keras menggunakan emoticon/emoji mobile (seperti 🎯, 📈, 🗣️, 💡). "
+        "Gunakan penanda teks TUI seperti [POSISI], [PORTOFOLIO], [IELTS], [STRATEGI]."
+    )
+    prompt = f"""
+    Berikut adalah data profil pendaftar:
+    - Nama: {user.get('name')}
+    - IPK: {user.get('gpa')}
+    - IELTS: {user.get('ielts_score')}
+    - Usia: {user.get('age')}
+    - Jenjang Target: {user.get('target_degree')}
+    - Pengalaman Kerja: {user.get('work_exp_years')} tahun
+    - Publikasi Riset: {user.get('publications_count')}
+    - Negara Target: {', '.join(user.get('target_countries', []))}
 
-    try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
+    Berikut adalah top 3 hasil pencocokan beasiswa:
+    {match_results[:3]}
 
-        prompt = f"""
-        Kamu adalah pakar konsultan beasiswa internasional (AI Gap Advisor).
-        Berikut adalah data profil pendaftar:
-        - Nama: {user.get('name')}
-        - IPK: {user.get('gpa')}
-        - IELTS: {user.get('ielts_score')}
-        - Usia: {user.get('age')}
-        - Jenjang Target: {user.get('target_degree')}
-        - Pengalaman Kerja: {user.get('work_exp_years')} tahun
-        - Publikasi Riset: {user.get('publications_count')}
-        - Negara Target: {', '.join(user.get('target_countries', []))}
+    Berikan 4-5 poin ringkas, konkret, dan motivatif (dalam bahasa Indonesia):
+    - [POSISI]: Evaluasi singkat posisi peluang beasiswa pendaftar.
+    - [PORTOFOLIO]: Langkah konkret peningkatan skor (IELTS / Riset / Portfolio).
+    - [STRATEGI]: Strategi pemilihan beasiswa (Safety, Target, Reach).
+    - [LEADERSHIP]: Catatan usia dan pengalaman.
 
-        Berikut adalah top 3 hasil pencocokan beasiswa:
-        {match_results[:3]}
+    Format output dalam Markdown standard dengan bullet list '-'. JANGAN GUNAKAN EMOJI.
+    """
 
-        Berikan 4-5 poin ringkas, konkret, dan motivatif (dalam bahasa Indonesia) mengenai:
-        1. Evaluasi singkat posisi peluang beasiswa pendaftar.
-        2. Langkah konkret peningkatan skor (IELTS / Riset / Portfolio).
-        3. Strategi pemilihan beasiswa (Safety, Target, Reach).
-
-        Gunakan format bullet list dengan emoji.
-        """
-
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-
-        if response and response.text:
-            lines = [line.strip() for line in response.text.split("\n") if line.strip()]
+    res_text = generate_llm_text(prompt, system_instruction=system_instruction)
+    if res_text:
+        lines = [line.strip() for line in res_text.split("\n") if line.strip()]
+        if lines:
             return lines
 
-    except Exception:
-        pass
-
     return generate_rule_based_advice(user, match_results)
+
+

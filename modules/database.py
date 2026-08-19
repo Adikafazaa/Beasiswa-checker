@@ -4,8 +4,10 @@ import json
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
-DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_DIR = os.path.join(PROJECT_ROOT, "data")
 DB_PATH = os.path.join(DB_DIR, "scholarships.db")
+
 
 
 from modules.storage.migrator import run_migrations, get_connection as get_migrator_conn, DB_PATH
@@ -19,62 +21,26 @@ def init_db(db_path: str = DB_PATH) -> None:
     """Initialize database tables via MigrationEngine and populate seed data if empty."""
     run_migrations(db_path)
     conn = get_connection(db_path)
+
+
     cursor = conn.cursor()
 
+    try:
+        cursor.execute("ALTER TABLE scholarships ADD COLUMN updated_at TEXT DEFAULT '';")
+    except Exception:
+        pass
 
-    # Create scholarships table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS scholarships (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        provider TEXT NOT NULL,
-        funding_type TEXT NOT NULL,
-        target_degrees TEXT NOT NULL,
-        target_countries TEXT NOT NULL,
-        min_gpa REAL,
-        min_ielts REAL,
-        min_toefl_ibt REAL,
-        max_age INTEGER,
-        min_work_exp_years INTEGER DEFAULT 0,
-        required_documents TEXT,
-        deadline_date TEXT,
-        source_url TEXT,
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
+    try:
+        cursor.execute("ALTER TABLE user_profiles ADD COLUMN updated_at TEXT DEFAULT '';")
+    except Exception:
+        pass
 
-    # Create user_profiles table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS user_profiles (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        gpa REAL NOT NULL,
-        ielts_score REAL NOT NULL,
-        toefl_ibt_score REAL DEFAULT 0.0,
-        age INTEGER NOT NULL,
-        target_degree TEXT NOT NULL,
-        major_field TEXT,
-        work_exp_years INTEGER DEFAULT 0,
-        publications_count INTEGER DEFAULT 0,
-        target_countries TEXT NOT NULL,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
 
     conn.commit()
-    
-    # Check if scholarships table is empty, if so populate seed data
-    cursor.execute("SELECT COUNT(*) as count FROM scholarships")
-    if cursor.fetchone()["count"] == 0:
-        seed_default_scholarships(conn)
 
-    # Check if user profile exists, if not populate default sample profile
-    cursor.execute("SELECT COUNT(*) as count FROM user_profiles")
-    if cursor.fetchone()["count"] == 0:
-        seed_default_profile(conn)
-
+    seed_default_scholarships(conn)
     conn.close()
+
 
 
 def seed_default_scholarships(conn: sqlite3.Connection) -> None:
@@ -303,9 +269,10 @@ def seed_default_profile(conn: sqlite3.Connection) -> None:
     """Insert default initial user profile."""
     default_profile = (
         "default_user",
-        "Adika",
+        "Pendaftar Beasiswa",
         3.65,
         6.5,
+
         85.0,
         24,
         "S2",
@@ -413,7 +380,23 @@ def save_user_profile(profile_data: Dict[str, Any], db_path: str = DB_PATH) -> N
 
 
 
+def save_user_ai_analysis(user_id: str, advice_text: str, db_path: str = DB_PATH) -> None:
+    """Persist generated AI gap analysis text into user's profile in SQLite."""
+    conn = get_connection(db_path)
+    try:
+        conn.execute(
+            "UPDATE user_profiles SET last_ai_analysis = ?, updated_at = ? WHERE id = ?",
+            (advice_text, datetime.now().isoformat(), user_id)
+        )
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+
 def get_all_scholarships(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+
     """Retrieve all scholarships from SQLite."""
     conn = get_connection(db_path)
     cursor = conn.cursor()
@@ -427,7 +410,9 @@ def get_all_scholarships(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
         item["target_degrees"] = json.loads(item["target_degrees"]) if item["target_degrees"] else []
         item["target_countries"] = json.loads(item["target_countries"]) if item["target_countries"] else []
         item["required_documents"] = json.loads(item["required_documents"]) if item["required_documents"] else []
+        results.append(item)
     return results
+
 
 
 def get_user_scholarship_flags(user_id: str, db_path: str = DB_PATH) -> Dict[str, Dict[str, Any]]:
