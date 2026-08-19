@@ -18,6 +18,10 @@ venv.bak/
 data/*.db
 data/sessions/*.json
 
+# Documentation & Brainstorming docs
+Docs/
+docs/
+
 # IDE & Editor files
 .vscode/
 .idea/
