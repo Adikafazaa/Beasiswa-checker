@@ -1,95 +1,140 @@
-# 🎓 Scholarship Analytics & Matching System (Beasiswa Checker)
+# 🎓 Scholarship Analytics & Matching System (Terminal / CLI Edition)
 
-> **Sistem Cerdas Rekomendasi Beasiswa, Gap Analysis Berbasis AI, dan Dashboard Analitik Interaktif.**
+> **Platform Cerdas Analitik, Pencocokan Beasiswa, dan AI Gap Advisor Berbasis 100% Terminal (TUI).**
 
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Framework](https://img.shields.io/badge/framework-Streamlit-FF4B4B.svg)](https://streamlit.io/)
+[![UI Style](https://img.shields.io/badge/CLI%20TUI-Rich%20%2B%20InquirerPy-FF4B4B.svg)](https://github.com/Textualize/rich)
+[![Terminal Charts](https://img.shields.io/badge/Charts-Plotext-green.svg)](https://github.com/piccolomo/plotext)
 [![AI Engine](https://img.shields.io/badge/AI-Google%20Gemini%202.5%20Flash-4285F4.svg)](https://ai.google.dev/)
 [![Scraper](https://img.shields.io/badge/Scraper-Playwright-2EAD33.svg)](https://playwright.dev/)
+[![Database](https://img.shields.io/badge/Database-SQLite-003B57.svg)](https://www.sqlite.org/)
 
 ---
 
-## 📌 Ringkasan Proyek
+## 📌 Ringkasan & Konsep Proyek
 
-**Scholarship Analytics & Matching System** adalah platform analitik dan mesin rekomendasi cerdas yang membantu calon pendaftar beasiswa mencocokkan profil mereka (IPK, skor bahasa, pengalaman kerja, publikasi, dll.) dengan katalog beasiswa yang tersedia.
+**Scholarship Analytics & Matching System (Terminal Edition)** adalah sistem rekomendasi beasiswa dan analitik interaktif yang berjalan sepenuhnya di terminal (*Terminal User Interface / TUI*). Pengguna dapat mengelola profil pendaftar, menghitung skor kecocokan beasiswa, melihat visualisasi peluang dalam bentuk grafik ASCII/Unicode, hingga menjalankan web scraper secara terintegrasi langsung dari satu layar command prompt.
 
-Sistem ini tidak hanya menyaring syarat mutlak (*eligibility*), tetapi juga mengalkulasi probabilitas kelolosan (*Fit Score*), memetakan kuadran peluang (*Opportunity Matrix*), serta memberikan saran personal berbasis AI (*Gap Advisor*) untuk meningkatkan peluang pendaftar.
-
----
-
-## ✨ Fitur Utama
-
-- 🎯 **Hybrid Matching Engine**: 
-  - **Tahap 1 (Hard Filter)**: Memfilter beasiswa berdasarkan syarat mutlak (batas usia, jenjang, IPK minimum, skor IELTS/TOEFL).
-  - **Tahap 2 (Weighted Scoring)**: Menghitung skor kecocokan profil 0–100% dan mengelompokkannya ke kuadran **Safe (Peluang $\ge$ 80%)**, **Target (60–79%)**, dan **Reach/Dream (< 60%)**.
-- 📊 **Interactive Analytics Dashboard**: Visualisasi radar perbandingan kriteria, matriks peluang, dan timeline *deadline* beasiswa interaktif menggunakan **Plotly & Streamlit**.
-- 🤖 **AI-Powered Gap Advisor & Parser**: Memanfaatkan **Google Gemini** untuk mengubah data mentah hasil *scraping* menjadi format JSON terstruktur serta menganalisis *gap* profil pengguna dengan rekomendasi langkah konkret.
-- 🌐 **Automated Scraping with Manual Login**: Pengambilan data beasiswa otomatis dengan **Playwright** yang mendukung sesi *login* manual via terminal untuk melewati proteksi CAPTCHA/2FA.
+### 🌟 Keunggulan Berbasis Terminal (TUI):
+- ⚡ **Sangat Ringan & Cepat**: Tanpa beban web browser / local web server, rendering data terjadi secara instan.
+- ⌨️ **Keyboard-Driven & Interaktif**: Navigasi menu modern menggunakan tombol panah ($\uparrow \downarrow$), autocomplete, dan checklist berkat **`InquirerPy`**.
+- 📊 **Visualisasi Estetik di Terminal**: Menggunakan **`Rich`** untuk layout tabel berwarna, panel, & live spinner, serta **`Plotext`** untuk grafik batang & sebaran skor.
+- 🔐 **Alur Scraping Terpadu**: Login manual untuk bypass CAPTCHA/2FA dan proses parsing data beasiswa dipicu langsung dari menu CLI.
 
 ---
 
-## 🏗️ Arsitektur Sistem
+## 🖥️ Preview Tampilan Terminal Dashboard
 
-```mermaid
-flowchart TD
-    subgraph Ingestion ["1. Data Ingestion & Scraper"]
-        A[Terminal CLI Trigger] --> B[Playwright Scraper]
-        B -.->|Login Manual 1x| B1[Session / Cookie Storage]
-        B --> C[Raw Text / Captions / HTML]
-        C --> D[LLM Parser: Gemini 2.5 Flash]
-        D -->|JSON Terstruktur| E[(Database SQLite)]
-    end
+```text
+╭────────────────────────────── 🎓 BEASISWA CHECKER ANALYTICS ──────────────────────────────╮
+│  Nama: Adika | Jenjang: S2 | Target: UK, Europe | IPK: 3.65 | IELTS: 6.5 | Pengalaman: 2 Th │
+╰────────────────────────────────────────────────────────────────────────────────────────────╯
 
-    subgraph CoreEngine ["2. Matching & Analytics Engine"]
-        F[Input Profil Pengguna] --> G[Rule Filter & Scoring Engine]
-        E --> G
-        G --> H[Gap Analysis & AI Advisor]
-    end
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
+┃ Kategori           ┃ Nama Beasiswa      ┃ Peluang (%) ┃ Status Syarat  ┃ Kuadran        ┃
+┣━━━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━┫
+┃ 🟢 Safety (≥80%)   ┃ Chevening UK       ┃ 88% [█████] ┃ Lengkap (100%) ┃ Rekomendasi #1 ┃
+┃ 🟢 Safety (≥80%)   ┃ Erasmus Mundus     ┃ 82% [████ ] ┃ Lengkap (100%) ┃ Rekomendasi #2 ┃
+┃ 🟡 Target (60-79%) ┃ LPDP Reguler       ┃ 74% [███  ] ┃ Lolos Syarat   ┃ Prioritas #3   ┃
+┃ 🔴 Reach (<60%)    ┃ Gates Cambridge    ┃ 52% [██   ] ┃ Perlu Riset    ┃ Tantangan      ┃
+┗━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━┛
 
-    subgraph DashboardUI ["3. Presentation Layer (Streamlit)"]
-        G --> I[Radar Chart: Profile Match]
-        G --> J[Opportunity Matrix: Safe/Target/Reach]
-        H --> K[Personalized Action Plan & Tips]
-        E --> L[Scholarship Explorer & Timeline]
-    end
+📊 Peluang & Distribusi Skor:
+ 100 ┼                                      ╭───╮
+  80 ┼                    ╭───╮             │   │
+  60 ┼                    │   │    ╭───╮    │   │
+  40 ┼           ╭───╮    │   │    │   │    │   │
+   0 ┴───────────┴───┴────┴───┴────┴───┴────┴───┴──────────
+                 Gates    LPDP    Erasmus  Chevening
+
+💡 AI Gap Analysis & Rekomendasi Tindakan:
+ • Target Beasiswa: LPDP Reguler (74%)
+   👉 Skor IELTS Anda saat ini 6.5. Jika ditingkatkan ke 7.0, peluang naik menjadi 84%.
+   👉 Tambahkan 1 publikasi riset atau bukti leadership untuk memperkuat esai kontribusi.
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## 🏗️ Arsitektur Sistem (Terminal Edition)
 
-| Komponen | Teknologi / Library | Kegunaan |
-| :--- | :--- | :--- |
-| **Frontend / Dashboard** | [Streamlit](https://streamlit.io/) + [Plotly](https://plotly.com/) | Antarmuka interaktif dan visualisasi data grafis. |
-| **Database** | [SQLite](https://www.sqlite.org/) / [SQLAlchemy](https://www.sqlalchemy.org/) | Penyimpanan data relasional lokal yang ringan. |
-| **Automation & Scraping** | [Playwright Python](https://playwright.dev/python/) | Browser automation dan autentikasi sesi manual. |
-| **AI / LLM Layer** | [Google Gemini API](https://ai.google.dev/) (`gemini-2.5-flash`) | Ekstraksi informasi mentah & AI gap advisor. |
-| **Data Processing** | [Pandas](https://pandas.pydata.org/) & [Scikit-Learn](https://scikit-learn.org/) | Normalisasi data, pembobotan skor, dan kemiripan profil. |
+```mermaid
+flowchart TD
+    subgraph CLI ["1. Terminal Interface (TUI & Menus)"]
+        A[CLI Main Menu - InquirerPy]
+        A --> A1[Input/Edit Profil User]
+        A --> A2[Jalankan Matching & Analytics]
+        A --> A3[Trigger Scraper Beasiswa]
+        A --> A4[Cari & Filter Database Beasiswa]
+    end
+
+    subgraph CoreEngine ["2. Core Engine & Data Processor"]
+        B[Profile Manager]
+        C[Hybrid Matching Engine]
+        C1[Rule-based Filter]
+        C2[Weighted Scoring]
+        C3[Opportunity Classifier]
+        D[AI Gap Advisor - Gemini Flash]
+    end
+
+    subgraph ScraperModule ["3. Scraper & Ingestion"]
+        E[Playwright Scraper]
+        E1[Manual Terminal Login Session]
+        E2[LLM Data Extractor]
+    end
+
+    subgraph Storage ["4. Storage Layer"]
+        F[(SQLite: scholarships.db)]
+        G[data/sessions/session.json]
+    end
+
+    CLI --> CoreEngine
+    CLI --> ScraperModule
+    CoreEngine --> Storage
+    ScraperModule --> Storage
+    ScraperModule -.->|Sesi Login| G
+```
 
 ---
 
-## 📂 Struktur Direktori
+## 🛠️ Tech Stack & Library
+
+| Komponen | Library / Tools | Peranan & Fungsi |
+| :--- | :--- | :--- |
+| **CLI Styling & Layout** | [Rich](https://github.com/Textualize/rich) | Merender tabel berwarna, panel berbingkai, teks Markdown, live progress bar & spinner. |
+| **Interactive Prompts** | [InquirerPy](https://inquirerpy.readthedocs.io/) | Menyediakan navigasi menu keyboard ($\uparrow \downarrow$), list selector, input prompt, & checklist. |
+| **Terminal Plotting** | [Plotext](https://github.com/piccolomo/plotext) | Merender grafik batang dan diagram sebaran langsung di terminal dengan karakter Unicode. |
+| **Database** | [SQLite](https://www.sqlite.org/) + [SQLAlchemy](https://www.sqlalchemy.org/) | Penyimpanan data lokal mandiri, cepat, dan terstruktur. |
+| **Scraper & Auth** | [Playwright Python](https://playwright.dev/python/) | Browser automation untuk login manual 1x di terminal & scraping data postingan beasiswa. |
+| **AI Parser & Advisor** | [Google Gemini API](https://ai.google.dev/) (`gemini-2.5-flash`) | Ekstraksi postingan teks mentah menjadi JSON terstruktur dan pembuatan analisis kesenjangan profil (*Gap Analysis*). |
+| **Data Processing** | [Pandas](https://pandas.pydata.org/) | Normalisasi data, pengurutan skor, dan pemrosesan query database. |
+
+---
+
+## 📂 Struktur Direktori Proyek
 
 ```text
 BEASISWA-CHECKER/
 ├── Brainstorming/
-│   └── system_analytics_and_architecture.md   # Dokumen perancangan arsitektur lengkap
-├── app.py                                     # Entry point aplikasi Streamlit
-├── requirements.txt                           # Daftar dependensi Python
+│   └── system_analytics_and_architecture.md   # Dokumen perancangan arsitektur lengkap (CLI Edition)
+├── main.py                                    # Entry point utama aplikasi CLI (Menu & Routing)
+├── requirements.txt                           # Daftar dependensi library Python
 ├── .env.example                               # Template konfigurasi environment / API Key
-├── README.md                                  # Dokumentasi proyek
+├── README.md                                  # Dokumentasi proyek ini
 ├── data/
-│   ├── scholarships.db                        # Database SQLite
-│   └── sessions/                              # Penyimpanan session cookies browser
+│   ├── scholarships.db                        # Database lokal SQLite
+│   └── sessions/                              # Penyimpanan cookie sesi login Playwright
+├── cli/
+│   ├── menus.py                               # Prompt menu interaktif (InquirerPy)
+│   ├── views.py                               # Render visual tabel, panel, & grafik (Rich + Plotext)
+│   └── profile_cli.py                         # Form input data profil pendaftar via CLI
 ├── modules/
-│   ├── database.py                            # Manajemen model & CRUD SQLite
-│   ├── matching_engine.py                     # Algoritma skoring & filter kecocokan
-│   ├── ai_advisor.py                          # Integrasi AI Gemini (Gap Analysis)
-│   └── visualizer.py                          # Generator grafik Plotly (Radar, Matrix)
+│   ├── database.py                            # Operasi CRUD SQLite & koneksi database
+│   ├── matching_engine.py                     # Algoritma scoring & klasifikasi peluang beasiswa
+│   └── ai_advisor.py                          # Integrasi Gemini API untuk gap analysis & saran
 └── scraper/
-    ├── auth_login.py                          # Helper login manual Playwright via CLI
-    ├── portal_scraper.py                      # Scraper portal beasiswa
-    └── llm_parser.py                          # Ekstraktor teks mentah ke JSON via LLM
+    ├── auth_login.py                          # Helper login manual browser Playwright via CLI
+    ├── portal_scraper.py                      # Scraper portal & halaman beasiswa
+    └── llm_parser.py                          # Parser teks mentah ke format JSON via LLM
 ```
 
 ---
@@ -113,36 +158,36 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-### 3. Install Dependensi
+### 3. Install Dependensi & Browser Playwright
 ```bash
 pip install -r requirements.txt
-playwright install
+playwright install chromium
 ```
 
 ### 4. Konfigurasi Environment Variable
-Salin file `.env.example` menjadi `.env` dan masukkan API Key Anda:
+Salin file `.env.example` ke `.env` dan masukkan API Key Gemini Anda:
 ```env
 GEMINI_API_KEY=your_google_gemini_api_key_here
 ```
 
-### 5. Jalankan Aplikasi
+### 5. Jalankan Aplikasi CLI
 ```bash
-streamlit run app.py
+python main.py
 ```
 
 ---
 
 ## 🗺️ Roadmap Pengembangan
 
-- [x] **Perancangan Arsitektur & Logika Sistem** (`system_analytics_and_architecture.md`)
-- [ ] **Fase 1**: Setup project structure & dependensi
-- [ ] **Fase 2**: Skema Database SQLite & Operasi CRUD
-- [ ] **Fase 3**: Implementasi *Matching & Scoring Engine*
-- [ ] **Fase 4**: Pembuatan UI Dashboard Streamlit & Visualisasi Plotly
-- [ ] **Fase 5**: Implementasi Playwright Scraper + LLM Parser
-- [ ] **Fase 6**: Integrasi AI Gap Advisor & Final Testing
+- [x] **Perancangan Arsitektur CLI/TUI** (`system_analytics_and_architecture.md`)
+- [ ] **Fase 1: Setup Environment & Dependensi** (`rich`, `inquirerpy`, `plotext`, `playwright`, dll.)
+- [ ] **Fase 2: Database & Data Beasiswa Awal** (Inisialisasi SQLite & dataset awal beasiswa)
+- [ ] **Fase 3: Matching & Analytics Engine** (Kalkulasi skor & matriks peluang Safety/Target/Reach)
+- [ ] **Fase 4: Antarmuka Terminal (TUI Dashboard)** (Menu interaktif + visualisasi grafik Plotext)
+- [ ] **Fase 5: Scraper Playwright + Manual Login + LLM Data Extractor**
+- [ ] **Fase 6: AI Gap Advisor** (Rekomendasi personal langsung di terminal)
 
 ---
 
 ## 📄 Lisensi
-Proyek ini dibuat untuk keperluan eksplorasi dan pengembangan sistem rekomendasi beasiswa berbasis analitik dan kecerdasan buatan.
+Proyek ini dikembangkan secara independen sebagai platform analitik dan rekomendasi beasiswa berbasis terminal dengan bantuan AI.
